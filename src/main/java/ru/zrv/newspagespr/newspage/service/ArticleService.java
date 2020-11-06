@@ -20,7 +20,7 @@ public class ArticleService {
         if(articleDao.get(id).isPresent()) {
             return articleDao.get(id).get();
         } else {
-            throw new RuntimeException();
+            return null;
         }
     }
 }

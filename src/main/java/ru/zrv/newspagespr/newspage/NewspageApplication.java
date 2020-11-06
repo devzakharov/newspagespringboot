@@ -12,15 +12,15 @@ public class NewspageApplication {
 	public static void main(String[] args) {
 
 
-		Flyway flyway = Flyway.
-				configure().
-				dataSource(
-						"jdbc:postgresql://localhost:5432/newspagespr?useUnicode=true&serverTimezone=UTC",
-						"postgres",
-						"root"
-				).load();
-
-		flyway.migrate();
+//		Flyway flyway = Flyway.
+//				configure().
+//				dataSource(
+//						"jdbc:postgresql://localhost:5432/newspagespr?useUnicode=true&serverTimezone=UTC",
+//						"postgres",
+//						"root"
+//				).load();
+//
+//		flyway.migrate();
 
 		SpringApplication.run(NewspageApplication.class, args);
 	}
