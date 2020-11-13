@@ -185,23 +185,23 @@ public class ArticleDao implements Dao<Article> {
 
         StringBuilder query = new StringBuilder();
 
-        if (!searchQuery.equals("undefined")) {
+        if (!searchQuery.equals("")) {
             query.append("SELECT *, t FROM (");
         }
         query.append("SELECT *, convert_from(decode(article_html, 'base64'), 'UTF-8') as t FROM articles ");
         if (!tagsArray[0].equals("")) {
             query.append("WHERE news_keywords @> :tags ");
-            if(!from.equals("undefined")||!to.equals("undefined")) {
+            if(!from.equals("")||!to.equals("")) {
                 query.append(" AND ");
             }
-        } else if(!from.equals("undefined")&&!to.equals("undefined")) {
+        } else if(!from.equals("")&&!to.equals("")) {
             query.append(" WHERE ");
         }
-        if (!from.equals("undefined")&&!to.equals("undefined")) {
+        if (!from.equals("")&&!to.equals("")) {
             query.append(" publish_date BETWEEN :from ");
             query.append(" AND :to ");
         }
-        if (!searchQuery.equals("undefined")) {
+        if (!searchQuery.equals("")) {
             query.append(" ) foo  WHERE t LIKE ALL (:search) ");
         }
         query.append(" ORDER BY publish_date DESC ");
@@ -223,7 +223,7 @@ public class ArticleDao implements Dao<Article> {
         NamedParameterJdbcTemplate namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
         MapSqlParameterSource paramSource = new MapSqlParameterSource();
 
-        if (!searchQuery.equals("undefined")) {
+        if (!searchQuery.equals("")) {
             Array array = dataSource.getConnection().createArrayOf("VARCHAR", convertSearchQueryStringToArray(searchQuery));
             paramSource.addValue("search", array);
         }
@@ -233,7 +233,7 @@ public class ArticleDao implements Dao<Article> {
             paramSource.addValue("tags", array);
         }
 
-        if (!from.equals("undefined")&&!to.equals("undefined")) {
+        if (!from.equals("")&&!to.equals("")) {
             paramSource.addValue("from", Timestamp.valueOf(from + " 00:00:00"));
             paramSource.addValue("to", Timestamp.valueOf(to + " 00:00:00"));
         }

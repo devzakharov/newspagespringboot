@@ -9,7 +9,7 @@ import java.sql.SQLException;
 @Service
 public class ArticleService {
 
-    ArticleDao articleDao;
+    private final ArticleDao articleDao;
 
     public ArticleService(ArticleDao articleDao) {
         this.articleDao = articleDao;
