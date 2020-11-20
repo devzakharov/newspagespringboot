@@ -16,28 +16,25 @@ import java.util.List;
 public class ArticlesController {
 
     private final ArticlesService articlesService;
-    private final ObjectMapper objectMapper;
 
-    public ArticlesController(ArticlesService articlesService, ObjectMapper objectMapper) {
+    public ArticlesController(ArticlesService articlesService) {
         this.articlesService = articlesService;
-        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/api/v1/articles")
-    @ResponseStatus(HttpStatus.OK)
-    String getArticles(
+    public List<Article> getArticles(
             @RequestParam Integer limit,
             @RequestParam Integer offset,
             @RequestParam String tags,
             @RequestParam String fromDate,
             @RequestParam String toDate,
-            @RequestParam String search) throws SQLException, JsonProcessingException {
+            @RequestParam String search) throws SQLException {
 
         List<Article> articlesList = articlesService
                 .getArticlesList(limit, offset, tags, fromDate,toDate, search);
 
         if (articlesList == null) throw AppException.of(ErrorType.ARTICLES_NOT_FOUND);
 
-        return objectMapper.writeValueAsString(articlesList);
+        return articlesList;
     }
 }

@@ -1,5 +1,7 @@
 package ru.zrv.newspagespr.newspage.dao;
 
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import ru.zrv.newspagespr.newspage.domian.Article;
 
@@ -17,13 +19,15 @@ public class ArticleDao implements Dao<Article> {
 
     private final DataSource dataSource;
     private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
     // TODO настроить адекватные события для логера
     // final static Logger logger = Logger.getLogger(ArticleDao.class);
 
-    public ArticleDao(DataSource dataSource, NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+    public ArticleDao(DataSource dataSource, NamedParameterJdbcTemplate namedParameterJdbcTemplate, JdbcTemplate jdbcTemplate) {
         this.dataSource = dataSource;
         this.namedParameterJdbcTemplate = namedParameterJdbcTemplate;
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -49,13 +53,12 @@ public class ArticleDao implements Dao<Article> {
     }
 
     public List<Article> getFilteredResult(
-            Integer limit, Integer offset, String[] tagsArray, String from, String to, String searchQuery
+            Integer limit, Integer offset, String tags, String from, String to, String searchQuery
     ) throws SQLException {
 
         List<Article> filteredArticleList = new LinkedList<>();
-
-        String generatedQuery = generateQuery(tagsArray, from, to, searchQuery);
-        SqlRowSet rs = generateStatement(generatedQuery, limit, offset, tagsArray, from, to, searchQuery);
+        String sql = generateQuery(tags, from, to, searchQuery);
+        SqlRowSet rs = setValuesAndExecute(sql, limit, offset, tags, from, to, searchQuery);
 
         while (rs.next()) {
             filteredArticleList.add(createArticleFromResultSet(rs));
@@ -69,46 +72,42 @@ public class ArticleDao implements Dao<Article> {
 
     }
 
-    // TODO разделить на методы составление запроса, составление листа запросов
-    public void save(Set<Article> articleSet) throws SQLException {
+    public void save(Set<Article> articleSet) {
 
-        Iterator<Article> iterator = articleSet.iterator();
+        List<Article> articleList = new ArrayList<>(articleSet);
 
-        String query = "INSERT INTO articles " +
+        String sql = "INSERT INTO articles " +
                 "(id, description, news_keywords, image, article_html, front_url, title, photo, project, category, opinion_authors, anons, publish_date, parsed_date) " +
-                "VALUES (?,?,?,?,?,?,?,to_json(?::json),?,?,?,?,?,?) ON CONFLICT DO NOTHING";
+                "VALUES (?,?,string_to_array(?,', '),?,?,?,?,to_json(?::json),?,?,?,?,?,?) ON CONFLICT DO NOTHING";
 
-        Connection connection = dataSource.getConnection();
-        PreparedStatement preparedStatement = connection.prepareStatement(query);
+        this.jdbcTemplate.batchUpdate(sql, new BatchPreparedStatementSetter() {
 
-        while (iterator.hasNext()) {
+            @Override
+            public void setValues(PreparedStatement preparedStatement, int i) throws SQLException {
 
-            Article article = iterator.next();
-            // Брат, [03.11.20 12:42]
-            //Можешь свои кейворды засунуть строкой в запрос
-            //
-            //Брат, [03.11.20 12:42]
-            //А в запросе парсануть в массив
-            Array array = connection.createArrayOf("TEXT", article.getNewsKeywords().split(","));
+                preparedStatement.setString(1, articleList.get(i).getId());
+                preparedStatement.setString(2, Base64.getEncoder().encodeToString(articleList.get(i).getDescription().getBytes()));
+                preparedStatement.setString(3, articleList.get(i).getNewsKeywords());
+                preparedStatement.setString(4, articleList.get(i).getImage());
+                preparedStatement.setString(5, Base64.getEncoder().encodeToString(articleList.get(i).getArticleHtml().getBytes()));
+                preparedStatement.setString(6, articleList.get(i).getFrontUrl());
+                preparedStatement.setString(7, Base64.getEncoder().encodeToString(articleList.get(i).getTitle().getBytes()));
+                preparedStatement.setString(8, articleList.get(i).getPhoto().toString());
+                preparedStatement.setString(9, articleList.get(i).getProject());
+                preparedStatement.setString(10, articleList.get(i).getCategory());
+                preparedStatement.setString(11, articleList.get(i).getOpinionAuthors());
+                preparedStatement.setString(12, Base64.getEncoder().encodeToString(articleList.get(i).getAnons().getBytes()));
+                preparedStatement.setTimestamp(13, articleList.get(i).getPublishDate());
+                preparedStatement.setTimestamp(14, articleList.get(i).getParsedDate());
 
-            preparedStatement.setString(1, article.getId());
-            preparedStatement.setString(2, Base64.getEncoder().encodeToString(article.getDescription().getBytes()));
-            preparedStatement.setArray(3, array);
-            preparedStatement.setString(4, article.getImage());
-            preparedStatement.setString(5, Base64.getEncoder().encodeToString(article.getArticleHtml().getBytes()));
-            preparedStatement.setString(6, article.getFrontUrl());
-            preparedStatement.setString(7, Base64.getEncoder().encodeToString(article.getTitle().getBytes()));
-            preparedStatement.setString(8, article.getPhoto().toString());
-            preparedStatement.setString(9, article.getProject());
-            preparedStatement.setString(10, article.getCategory());
-            preparedStatement.setString(11, article.getOpinionAuthors());
-            preparedStatement.setString(12, Base64.getEncoder().encodeToString(article.getAnons().getBytes()));
-            preparedStatement.setTimestamp(13, article.getPublishDate());
-            preparedStatement.setTimestamp(14, article.getParsedDate());
+            }
 
-            preparedStatement.addBatch();
-        }
-        preparedStatement.executeBatch();
+            @Override
+            public int getBatchSize() {
+                return articleList.size();
+            }
+
+        });
     }
 
     @Override
@@ -119,33 +118,6 @@ public class ArticleDao implements Dao<Article> {
     @Override
     public void delete(Article a) {
 
-    }
-
-    public List<Article> getSearchResult(String searchQuery) throws SQLException {
-
-        List<Article> articleList = new LinkedList<>();
-
-        String query = "SELECT *, t FROM ( SELECT *, convert_from(decode(article_html, 'base64'), 'UTF-8') as t " +
-                " FROM articles) foo " +
-                " WHERE t LIKE ALL ( :array )";
-
-        NamedParameterJdbcTemplate namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
-        MapSqlParameterSource paramSource = new MapSqlParameterSource();
-
-        Array array = dataSource
-                .getConnection()
-                .createArrayOf("VARCHAR", convertSearchQueryStringToArray(searchQuery));
-
-        paramSource.addValue("array", array);
-
-        SqlRowSet rs = namedParameterJdbcTemplate.queryForRowSet(query, paramSource);
-
-
-        while (rs.next()) {
-            articleList.add(createArticleFromResultSet(rs));
-        }
-
-        return articleList;
     }
 
     private Article createArticleFromResultSet(SqlRowSet rs) {
@@ -166,19 +138,8 @@ public class ArticleDao implements Dao<Article> {
                 rs.getTimestamp("parsed_date"));
     }
 
-    // TODO подумать, как обойтись без этого
-    private String[] convertSearchQueryStringToArray(String searchQuery) {
-
-        String[] searchQueryArray = searchQuery.split(" ");
-        for (int i = 0; i < searchQueryArray.length; i++) {
-            searchQueryArray[i] = "%" + searchQueryArray[i].toLowerCase().substring(1) + "%";
-        }
-        return searchQueryArray;
-    }
-
-    // TODO заменить undefined на null
     private String generateQuery(
-            String[] tagsArray,
+            String tags,
             String from,
             String to,
             String searchQuery) {
@@ -189,8 +150,8 @@ public class ArticleDao implements Dao<Article> {
             query.append("SELECT *, t FROM (");
         }
         query.append("SELECT *, convert_from(decode(article_html, 'base64'), 'UTF-8') as t FROM articles ");
-        if (!tagsArray[0].equals("")) {
-            query.append("WHERE news_keywords @> :tags ");
+        if (!tags.equals("")) {
+            query.append("WHERE news_keywords @> string_to_array(:tags, ',') ");
             if(!from.equals("")||!to.equals("")) {
                 query.append(" AND ");
             }
@@ -210,27 +171,24 @@ public class ArticleDao implements Dao<Article> {
         return query.toString();
     }
 
-    private SqlRowSet generateStatement(
+    private SqlRowSet setValuesAndExecute(
             String generatedQuery,
             Integer limit,
             Integer offset,
-            String[] tagsArray,
+            String tags,
             String from,
             String to,
             String searchQuery) throws SQLException {
 
-
-        NamedParameterJdbcTemplate namedParameterJdbcTemplate = new NamedParameterJdbcTemplate(dataSource);
         MapSqlParameterSource paramSource = new MapSqlParameterSource();
 
         if (!searchQuery.equals("")) {
-            Array array = dataSource.getConnection().createArrayOf("VARCHAR", convertSearchQueryStringToArray(searchQuery));
-            paramSource.addValue("search", array);
+            //Array array = dataSource.getConnection().createArrayOf("VARCHAR", convertSearchQueryStringToArray(searchQuery));
+            paramSource.addValue("search", convertSearchQueryStringToArray(searchQuery));
         }
 
-        if (!tagsArray[0].equals("")) {
-            Array array = dataSource.getConnection().createArrayOf("TEXT", tagsArray);
-            paramSource.addValue("tags", array);
+        if (!tags.equals("")) {
+            paramSource.addValue("tags", tags);
         }
 
         if (!from.equals("")&&!to.equals("")) {
@@ -278,5 +236,15 @@ public class ArticleDao implements Dao<Article> {
         article.setParsedDate(parsed_date);
 
         return article;
+    }
+
+    // TODO подумать, как обойтись без этого
+    private String[] convertSearchQueryStringToArray(String searchQuery) {
+
+        String[] searchQueryArray = searchQuery.split(" ");
+        for (int i = 0; i < searchQueryArray.length; i++) {
+            searchQueryArray[i] = "%" + searchQueryArray[i].toLowerCase().substring(1) + "%";
+        }
+        return searchQueryArray;
     }
 }

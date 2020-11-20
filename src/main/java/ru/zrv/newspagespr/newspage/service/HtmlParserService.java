@@ -38,8 +38,13 @@ public class HtmlParserService {
     private void parseLink(ArticlePart articlePart) throws IOException {
 
         Article article = new Article();
-        Document doc = Jsoup.connect(articlePart.getFrontUrl()).get();
-
+        Document doc;
+        try {
+             doc = Jsoup.connect(articlePart.getFrontUrl()).get();
+        } catch (IllegalArgumentException e) {
+            e.printStackTrace();
+            doc = Jsoup.connect("https:" + articlePart.getFrontUrl()).get();
+        }
         article.setId(doc.select(".js-rbcslider-slide").attr("data-id"));
         article.setDescription(doc.select("div.js-rbcslider > div > meta").attr("content"));
         article.setNewsKeywords(doc.select("div.js-rbcslider > div > meta:nth-child(2)").attr("content"));

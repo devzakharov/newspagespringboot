@@ -24,7 +24,6 @@ public class ArticlesService {
             String toDate,
             String searchQuery
     ) throws SQLException {
-        String[] tagsArray = tags.split(",");
-        return articleDao.getFilteredResult(limit, offset, tagsArray, fromDate, toDate, searchQuery);
+        return articleDao.getFilteredResult(limit, offset, tags, fromDate, toDate, searchQuery);
     }
 }

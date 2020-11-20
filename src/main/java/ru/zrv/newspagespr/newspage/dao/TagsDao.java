@@ -1,23 +1,21 @@
 package ru.zrv.newspagespr.newspage.dao;
 
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.stereotype.Repository;
 import ru.zrv.newspagespr.newspage.domian.Tags;
 
-import javax.sql.DataSource;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
 @Repository
 public class TagsDao implements Dao<Tags> {
 
-    DataSource dataSource;
-    // TODO настроить адекватные события для логера
+    private final JdbcTemplate jdbcTemplate;
 
-
-    public TagsDao(DataSource dataSource) {
-        this.dataSource = dataSource;
+    public TagsDao(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Override
@@ -47,10 +45,9 @@ public class TagsDao implements Dao<Tags> {
         // not a usable method
     }
 
-    // TODO переписать на препейред стейтмент
-    public Map<String, Integer> getTagsMap() throws SQLException {
+    public Map<String, Integer> getTagsMap() {
 
-        String query = "with elements (element) as (" +
+        String sql = "with elements (element) as (" +
                 "select unnest(news_keywords) " +
                 "from articles) " +
                 "select *, count(*) " +
@@ -58,30 +55,30 @@ public class TagsDao implements Dao<Tags> {
                 "group by element " +
                 "order by count(*) desc " +
                 "limit 40";
-        ResultSet rs = dataSource.getConnection().prepareStatement(query).executeQuery();
 
+        SqlRowSet sqlRowSet = jdbcTemplate.queryForRowSet(sql);
         Map<String, Integer> tagsMap = new LinkedHashMap<>();
 
-        while (rs.next()) {
-            tagsMap.put(rs.getString("element"), rs.getInt("count"));
+        while (sqlRowSet.next()) {
+            tagsMap.put(sqlRowSet.getString("element"), sqlRowSet.getInt("count"));
         }
 
         return tagsMap;
     }
 
-    public Set<String> getSuggestions(String string) throws SQLException {
+    public Set<String> getSuggestions(String string) {
 
         Set<String> suggestions = new HashSet<>();
+        MapSqlParameterSource paramSource = new MapSqlParameterSource();
 
-        String query = "SELECT unnest FROM (SELECT unnest(news_keywords) FROM articles" +
-                " GROUP BY id) foo WHERE lower(unnest) LIKE lower(?) LIMIT 10";
+        String sql = "SELECT unnest FROM (SELECT unnest(news_keywords) FROM articles" +
+                " GROUP BY id) foo WHERE lower(unnest) LIKE lower(:word) LIMIT 10";
 
-        PreparedStatement preparedStatement = dataSource.getConnection().prepareStatement(query);
-        preparedStatement.setString(1, string + "%");
-        ResultSet resultSet = preparedStatement.executeQuery();
+        SqlRowSet sqlRowSet = jdbcTemplate.queryForRowSet(sql);
+        paramSource.addValue( "word",string + "%");
 
-        while(resultSet.next()) {
-            suggestions.add(resultSet.getString(1));
+        while(sqlRowSet.next()) {
+            suggestions.add(sqlRowSet.getString(1));
         }
 
         return suggestions;
