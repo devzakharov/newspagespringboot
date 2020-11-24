@@ -75,7 +75,6 @@ public class UserDao implements Dao<User> {
         preparedStatement.setString(3, sh256CryptoService.getHashString(user.getPassword()));
 
         ResultSet rs = dataSource.getConnection().createStatement().getGeneratedKeys();
-        // dbcs.closeConnection();
 
         int id = -1;
 
