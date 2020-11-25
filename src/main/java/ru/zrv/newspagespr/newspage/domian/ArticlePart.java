@@ -2,8 +2,6 @@ package ru.zrv.newspagespr.newspage.domian;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
 import java.sql.Timestamp;
 

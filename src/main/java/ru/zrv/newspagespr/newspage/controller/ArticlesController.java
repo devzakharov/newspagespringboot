@@ -1,8 +1,5 @@
 package ru.zrv.newspagespr.newspage.controller;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.zrv.newspagespr.newspage.domian.Article;
 import ru.zrv.newspagespr.newspage.exception.AppException;
